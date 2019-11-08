@@ -35,7 +35,13 @@ class App extends React.Component {
     }
 
     if (setStateDirectly) {
-      this.state = { graph: graph, showVertexIndices: true, vertexRadius: 2 };
+      this.state = {
+        graph: graph,
+        showVertexIndices: true,
+        vertexRadius: 2,
+        playing: false,
+        animationSpeed: 50,
+      };
     } else {
       this.setState({ graph: graph });
       this.renderGraph(graph);
@@ -108,11 +114,15 @@ class App extends React.Component {
         );
         const newXPos = (1 / degree) * xSum;
         const newYPos = (1 / degree) * ySum;
+        const dist = Math.sqrt(newXPos * newXPos + newYPos * newYPos);
+        const unitVectorX = (newXPos - vertex.xPos) / dist;
+        const unitVectorY = (newYPos - vertex.yPos) / dist;
+        const scaleFactor = 100;
         newGraph[vertexIndex] = {
           nailed: false,
           adjacencyList: vertex.adjacencyList,
-          xPos: newXPos,
-          yPos: newYPos,
+          xPos: vertex.xPos + unitVectorX * scaleFactor,
+          yPos: vertex.yPos + unitVectorY * scaleFactor,
           adjacencyListText: JSON.stringify(vertex.adjacencyList),
         };
       }
@@ -184,6 +194,25 @@ class App extends React.Component {
     }
   }
 
+  playAnimation(flipState) {
+    const step = () => {
+      this.stepAnimation();
+      if (this.state.playing) {
+        setTimeout(() => this.playAnimation(), this.state.animationSpeed);
+      }
+    };
+    if (flipState) {
+      this.setState(
+        prevState => ({
+          playing: !prevState.playing,
+        }),
+        step,
+      );
+    } else {
+      step();
+    }
+  }
+
   randomizeFreeVertices() {
     const newGraph = this.state.graph;
     for (let vertexIndex in newGraph) {
@@ -213,6 +242,9 @@ class App extends React.Component {
             <button onClick={() => this.stepAnimation()}>Step Animation</button>
             <button onClick={() => this.stepAnimation(50)}>
               Step Animation (50)
+            </button>
+            <button onClick={() => this.playAnimation(true)}>
+              {!this.state.playing ? 'Play Animation' : 'Stop Animation'}
             </button>
             <button onClick={() => this.loadGraph('icosahedralGraph')}>
               Icosahedral Graph
@@ -262,6 +294,16 @@ class App extends React.Component {
                 this.setState({ vertexRadius: parseInt(e.target.value) }, () =>
                   this.renderGraph(this.state.graph),
                 )
+              }
+            />
+            <label>Animation Speed</label>
+            <input
+              type="number"
+              min="0"
+              max="1000"
+              value={this.state.animationSpeed}
+              onChange={e =>
+                this.setState({ animationSpeed: parseInt(e.target.value) })
               }
             />
           </div>
