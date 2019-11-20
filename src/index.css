@@ -3,6 +3,10 @@ canvas {
   display: block;
 }
 
+button {
+  margin-right: 10px;
+}
+
 @media (min-width: 1280px) {
   .grid {
     display: grid;
@@ -12,4 +16,23 @@ canvas {
 
 .numberInput {
   width: 40px;
+}
+
+.container {
+  display: inline-block;
+  margin: 10px;
+}
+
+.container-item {
+}
+
+.flex-container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.control-container {
+  flex-basis: 500px;
+  min-width: 500px;
+  flex: 1;
 }

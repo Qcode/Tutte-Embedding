@@ -3,22 +3,22 @@ function icosahedralGraph() {
   graph[0] = {
     nailed: true,
     adjacencyList: [1, 2, 3, 7, 8],
-    xPos: 128,
-    yPos: 72,
+    xPos: 0.2,
+    yPos: 0.2,
   };
 
   graph[1] = {
     nailed: true,
     adjacencyList: [0, 2, 3, 4, 5],
-    xPos: 512,
-    yPos: 72,
+    xPos: 0.8,
+    yPos: 0.2,
   };
 
   graph[2] = {
     nailed: true,
     adjacencyList: [0, 1, 5, 6, 7],
-    xPos: 320,
-    yPos: 288,
+    xPos: 0.5,
+    yPos: 0.8,
   };
 
   graph[3] = {
@@ -109,38 +109,38 @@ function fullereneHexGraph() {
   graph[54] = { adjacencyList: [53, 40, 55] };
 
   graph[55] = {
-    xPos: 192,
-    yPos: 72,
+    xPos: 0.8,
+    yPos: 0.5,
     nailed: true,
     adjacencyList: [54, 56, 60],
   };
   graph[56] = {
-    xPos: 448,
-    yPos: 72,
+    xPos: 0.65,
+    yPos: 0.24,
     nailed: true,
     adjacencyList: [55, 42, 57],
   };
   graph[57] = {
-    xPos: 576,
-    yPos: 180,
+    xPos: 0.35,
+    yPos: 0.24,
     nailed: true,
     adjacencyList: [56, 44, 58],
   };
   graph[58] = {
-    xPos: 448,
-    yPos: 288,
+    xPos: 0.2,
+    yPos: 0.5,
     nailed: true,
     adjacencyList: [57, 47, 59],
   };
   graph[59] = {
-    xPos: 192,
-    yPos: 288,
+    xPos: 0.35,
+    yPos: 0.76,
     nailed: true,
     adjacencyList: [58, 49, 60],
   };
   graph[60] = {
-    xPos: 64,
-    yPos: 180,
+    xPos: 0.65,
+    yPos: 0.76,
     nailed: true,
     adjacencyList: [59, 52, 55],
   };
@@ -152,6 +152,19 @@ function fullereneHexGraph() {
   delete graph[60];
   return graph;
 }
+
+const getPentagonCoords = radius => {
+  const coords = [];
+  let curAngle = Math.PI / 2;
+  for (let x = 0; x < 5; x++) {
+    coords.push({
+      x: 0.5 + radius * Math.cos(curAngle),
+      y: 0.5 - radius * Math.sin(curAngle),
+    });
+    curAngle += 0.4 * Math.PI;
+  }
+  return coords;
+};
 
 function fullerenePentGraph() {
   let graph = {};
@@ -210,29 +223,35 @@ function fullerenePentGraph() {
   graph[53] = { adjacencyList: [52, 44, 54] };
   graph[54] = { adjacencyList: [53, 46, 55] };
   graph[55] = { adjacencyList: [54, 48, 51] };
-  graph[56] = { nailed: true, xPos: 320, yPos: 0, adjacencyList: [2, 57, 60] };
+  const pentagonCoords = getPentagonCoords(0.5);
+  graph[56] = {
+    nailed: true,
+    xPos: pentagonCoords[0].x,
+    yPos: pentagonCoords[0].y,
+    adjacencyList: [2, 57, 60],
+  };
   graph[57] = {
     nailed: true,
-    xPos: 132,
-    yPos: 137,
+    xPos: pentagonCoords[1].x,
+    yPos: pentagonCoords[1].y,
     adjacencyList: [56, 4, 58],
   };
   graph[58] = {
     nailed: true,
-    xPos: 204,
-    yPos: 358,
+    xPos: pentagonCoords[2].x,
+    yPos: pentagonCoords[2].y,
     adjacencyList: [57, 6, 59],
   };
   graph[59] = {
     nailed: true,
-    xPos: 436,
-    yPos: 358,
+    xPos: pentagonCoords[3].x,
+    yPos: pentagonCoords[3].y,
     adjacencyList: [58, 8, 60],
   };
   graph[60] = {
     nailed: true,
-    xPos: 508,
-    yPos: 137,
+    xPos: pentagonCoords[4].x,
+    yPos: pentagonCoords[4].y,
     adjacencyList: [59, 10, 56],
   };
   for (let x = 0; x < 60; x++) {
@@ -245,29 +264,35 @@ function fullerenePentGraph() {
 
 function dodecGraph() {
   let graph = {};
-  graph[1] = { nailed: true, xPos: 320, yPos: 0, adjacencyList: [2, 5, 6] };
+  const pentagonCoords = getPentagonCoords(0.5);
+  graph[1] = {
+    nailed: true,
+    xPos: pentagonCoords[0].x,
+    yPos: pentagonCoords[0].y,
+    adjacencyList: [2, 5, 6],
+  };
   graph[2] = {
     nailed: true,
-    xPos: 132,
-    yPos: 137,
+    xPos: pentagonCoords[1].x,
+    yPos: pentagonCoords[1].y,
     adjacencyList: [1, 3, 8],
   };
   graph[3] = {
     nailed: true,
-    xPos: 204,
-    yPos: 358,
+    xPos: pentagonCoords[2].x,
+    yPos: pentagonCoords[2].y,
     adjacencyList: [2, 4, 10],
   };
   graph[4] = {
     nailed: true,
-    xPos: 436,
-    yPos: 358,
+    xPos: pentagonCoords[3].x,
+    yPos: pentagonCoords[3].y,
     adjacencyList: [3, 5, 12],
   };
   graph[5] = {
     nailed: true,
-    xPos: 508,
-    yPos: 137,
+    xPos: pentagonCoords[4].x,
+    yPos: pentagonCoords[4].y,
     adjacencyList: [1, 4, 14],
   };
   graph[6] = { adjacencyList: [1, 7, 15] };
@@ -307,8 +332,8 @@ function grid() {
       let vertex = {};
       if (x === 0 || y === 0 || x === size - 1 || y === size - 1) {
         vertex.nailed = true;
-        vertex.xPos = (x + 1) * 80;
-        vertex.yPos = (y + 1) * 45;
+        vertex.xPos = (x + 1) * 0.125;
+        vertex.yPos = (y + 1) * 0.125;
       }
       const adjList = [];
       if (x !== 0) {
@@ -346,12 +371,12 @@ function gridDiagonal() {
 
 function setToCircle(graph) {
   let circlePos = 0;
-  let radius = 150;
+  let radius = 0.5;
   const arcLength = (Math.PI * 2) / (4 * (size - 1));
   const setVertexPos = (x, y) => {
     const index = coordsToIndex(x, y);
-    const newX = 320 + radius * Math.cos(circlePos * arcLength);
-    const newY = 180 + radius * Math.sin(circlePos * arcLength);
+    const newX = 0.5 + radius * Math.cos(circlePos * arcLength);
+    const newY = 0.5 + radius * Math.sin(circlePos * arcLength);
     ++circlePos;
     graph[index].xPos = newX;
     graph[index].yPos = newY;

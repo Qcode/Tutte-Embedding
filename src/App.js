@@ -1,49 +1,123 @@
 import React from 'react';
+import AjvModule from 'ajv';
+import schema from './GraphSchema';
 import * as preloadedGraphs from './PreLoadedGraphs';
 import Vertex from './Vertex';
 
-const canvasWidth = 640;
-const canvasHeight = 360;
+const Ajv = new AjvModule();
+const validateGraph = Ajv.compile(schema);
+const noInvalidAdjacencies = graph => {
+  for (const vertexIndex in graph) {
+    for (let x = 0; x < graph[vertexIndex].adjacencyList.length; x++) {
+      if (graph[graph[vertexIndex].adjacencyList[x]] === undefined) {
+        return false;
+      }
+    }
+  }
+  return true;
+};
+
+const getMaxLineWidth = string =>
+  string
+    .split('\n')
+    .reduce((acc, cur) => (cur.length > acc ? cur.length : acc), 0);
 
 class App extends React.Component {
   constructor(props) {
     super(props);
+    this.state = {};
     this.canvasRef = React.createRef();
     this.loadGraph('icosahedralGraph', true);
     this.stepAnimation = this.stepAnimation.bind(this);
-    this.updateVertexProperty = this.updateVertexProperty.bind(this);
-    this.changeVertexCount = this.changeVertexCount.bind(this);
     this.randomizeFreeVertices = this.randomizeFreeVertices.bind(this);
+    this.zoomGraph = this.zoomGraph.bind(this);
+    this.startDrag = this.startDrag.bind(this);
+    this.dragGraph = this.dragGraph.bind(this);
+    this.recordAnimation = this.recordAnimation.bind(this);
+    this.updateGraphJSON = this.updateGraphJSON.bind(this);
+  }
+
+  recordAnimation() {
+    if (!this.state.recording) {
+      const chunks = [];
+      const canvas = this.canvasRef.current;
+      const stream = canvas.captureStream(); // grab our canvas MediaStream
+      this.mediaRecorder = new MediaRecorder(stream); // init the recorder
+      this.mediaRecorder.ondataavailable = e => chunks.push(e.data);
+      this.mediaRecorder.onstop = e =>
+        this.saveVideo(new Blob(chunks, { type: 'video/webm' }));
+      this.mediaRecorder.start();
+    } else {
+      this.mediaRecorder.stop();
+    }
+    this.setState(prevState => ({
+      recording: !prevState.recording,
+    }));
+  }
+
+  saveVideo(blob) {
+    const a = document.createElement('a');
+    const vid = document.createElement('video');
+    vid.src = URL.createObjectURL(blob);
+    a.download = 'myvid.webm';
+    a.href = vid.src;
+    a.click();
+    window.URL.revokeObjectURL(vid.src);
+  }
+
+  getCanvasScale() {
+    const canvas = this.canvasRef.current;
+    const myCanvasWidth = this.state.canvasWidth ? this.state.canvasWidth : 640;
+    const myCanvasHeight = this.state.canvasHeight
+      ? this.state.canvasHeight
+      : 360;
+    return myCanvasHeight > myCanvasWidth ? myCanvasWidth : myCanvasHeight;
   }
 
   loadGraph(name, setStateDirectly) {
     let graph = preloadedGraphs[name]();
+    const canvasScale = this.getCanvasScale();
 
     for (const vertexIndex in graph) {
-      if (!graph[vertexIndex].nailed === undefined) {
+      if (graph[vertexIndex].nailed === undefined) {
         graph[vertexIndex].nailed = false;
       }
       if (graph[vertexIndex].xPos === undefined) {
-        graph[vertexIndex].xPos = Math.round(Math.random() * canvasWidth);
+        graph[vertexIndex].xPos = Math.random();
       }
       if (graph[vertexIndex].yPos === undefined) {
-        graph[vertexIndex].yPos = Math.round(Math.random() * canvasHeight);
+        graph[vertexIndex].yPos = Math.random();
       }
-      graph[vertexIndex].adjacencyListText = JSON.stringify(
-        graph[vertexIndex].adjacencyList,
-      );
     }
+
+    const canvas = this.canvasRef.current;
+
+    const myCanvasWidth = this.state.canvasWidth ? this.state.canvasWidth : 640;
+    const myCanvasHeight = this.state.canvasHeight
+      ? this.state.canvasHeight
+      : 360;
+
+    const baseState = {
+      scale: 1,
+      translateX: (myCanvasWidth - canvasScale) / 2,
+      translateY: (myCanvasHeight - canvasScale) / 2,
+      graph: graph,
+      graphJSON: JSON.stringify(graph, null, 2),
+    };
 
     if (setStateDirectly) {
       this.state = {
-        graph: graph,
-        showVertexIndices: true,
-        vertexRadius: 2,
+        ...baseState,
+        showVertexIndices: false,
+        vertexRadius: 0.5,
         playing: false,
-        animationSpeed: 50,
+        recording: false,
+        animationSpeed: 16,
+        canvasWidth: 640,
+        canvasHeight: 360,
       };
     } else {
-      this.setState({ graph: graph });
+      this.setState(baseState);
       this.renderGraph(graph);
     }
   }
@@ -52,8 +126,21 @@ class App extends React.Component {
     const canvas = this.canvasRef.current;
     const ctx = canvas.getContext('2d');
     ctx.font = '12px Arial';
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 0.25;
+    ctx.save();
+    const canvasScale = this.getCanvasScale();
 
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.setTransform(
+      this.state.scale,
+      0,
+      0,
+      this.state.scale,
+      this.state.translateX,
+      this.state.translateY,
+    );
+
     for (const vertexIndex in graph) {
       const vertex = graph[vertexIndex];
 
@@ -62,8 +149,11 @@ class App extends React.Component {
         ctx.strokeStyle =
           vertex.nailed && adjacentVertex.nailed ? '#F00' : '#00F';
         ctx.beginPath();
-        ctx.moveTo(vertex.xPos, vertex.yPos);
-        ctx.lineTo(adjacentVertex.xPos, adjacentVertex.yPos);
+        ctx.moveTo(vertex.xPos * canvasScale, vertex.yPos * canvasScale);
+        ctx.lineTo(
+          adjacentVertex.xPos * canvasScale,
+          adjacentVertex.yPos * canvasScale,
+        );
         ctx.stroke();
         ctx.closePath();
       }
@@ -74,8 +164,8 @@ class App extends React.Component {
       ctx.fillStyle = vertex.nailed ? '#F00' : '#000';
       ctx.beginPath();
       ctx.arc(
-        vertex.xPos,
-        vertex.yPos,
+        vertex.xPos * canvasScale,
+        vertex.yPos * canvasScale,
         this.state.vertexRadius,
         0,
         2 * Math.PI,
@@ -86,10 +176,70 @@ class App extends React.Component {
         ctx.fillStyle = '#0F0';
         ctx.fillText(
           vertexIndex,
-          vertex.xPos - this.state.vertexRadius / 2,
-          vertex.yPos + this.state.vertexRadius / 2,
+          vertex.xPos * canvasScale - this.state.vertexRadius / 2,
+          vertex.yPos * canvasScale + this.state.vertexRadius / 2,
         );
       }
+    }
+    ctx.restore();
+  }
+
+  zoomGraph(e) {
+    e.preventDefault();
+
+    let currentTargetRect = e.currentTarget.getBoundingClientRect();
+
+    const x = e.pageX - currentTargetRect.left;
+    const y = e.pageY - currentTargetRect.top;
+
+    const direction = e.deltaY > 0 ? -1 : 1;
+    const factor = 0.05;
+
+    this.setState(prevState => {
+      const newScale = prevState.scale * 1 * direction * factor;
+      if (prevState.scale + newScale < 0.5) {
+        return {};
+      }
+      const translateX =
+        prevState.translateX -
+        ((x - prevState.translateX) / prevState.scale) * newScale;
+      const translateY =
+        prevState.translateY -
+        ((y - prevState.translateY) / prevState.scale) * newScale;
+      return {
+        scale: prevState.scale + newScale,
+        translateX,
+        translateY,
+      };
+    }, this.renderGraph(this.state.graph));
+  }
+
+  startDrag(e) {
+    let currentTargetRect = e.currentTarget.getBoundingClientRect();
+
+    const x = e.pageX - currentTargetRect.left;
+    const y = e.pageY - currentTargetRect.top;
+    this.setState(prevState => ({
+      dragging: true,
+      startDragX: x - prevState.translateX,
+      startDragY: y - prevState.translateY,
+    }));
+  }
+
+  dragGraph(e) {
+    if (this.state.dragging) {
+      let currentTargetRect = e.currentTarget.getBoundingClientRect();
+
+      const x = e.pageX - currentTargetRect.left;
+      const y = e.pageY - currentTargetRect.top;
+
+      this.setState(
+        prevState => ({
+          translateX: x - prevState.startDragX,
+          translateY: y - prevState.startDragY,
+        }),
+        this.renderGraph(this.state.graph),
+      );
     }
   }
 
@@ -112,91 +262,56 @@ class App extends React.Component {
           (acc, cur) => acc + graph[cur].yPos,
           0,
         );
-        const newXPos = (1 / degree) * xSum;
-        const newYPos = (1 / degree) * ySum;
-        const dist = Math.sqrt(newXPos * newXPos + newYPos * newYPos);
-        const unitVectorX = (newXPos - vertex.xPos) / dist;
-        const unitVectorY = (newYPos - vertex.yPos) / dist;
-        const scaleFactor = 100;
+        const finalXPos = (1 / degree) * xSum;
+        const finalYPos = (1 / degree) * ySum;
+        const dist = Math.sqrt(finalXPos * finalXPos + finalYPos * finalYPos);
+        const unitVectorX = (finalXPos - vertex.xPos) / dist;
+        const unitVectorY = (finalYPos - vertex.yPos) / dist;
+        const scaleFactor = 0.15;
+
+        let nextXPos = vertex.xPos + unitVectorX * scaleFactor;
+        let nextYPos = vertex.yPos + unitVectorY * scaleFactor;
+        if (
+          Math.sqrt(
+            Math.pow(nextXPos - vertex.xPos, 2) +
+              Math.pow(nextYPos - vertex.yPos, 2),
+          ) < 0.001
+        ) {
+          nextXPos = finalXPos;
+          nextYPos = finalYPos;
+        }
         newGraph[vertexIndex] = {
           nailed: false,
           adjacencyList: vertex.adjacencyList,
-          xPos: vertex.xPos + unitVectorX * scaleFactor,
-          yPos: vertex.yPos + unitVectorY * scaleFactor,
-          adjacencyListText: JSON.stringify(vertex.adjacencyList),
+          xPos: nextXPos,
+          yPos: nextYPos,
         };
       }
       graph = newGraph;
       newGraph = {};
     }
     this.renderGraph(graph);
-    this.setState({ graph: graph });
+    this.setState({ graph: graph, graphJSON: JSON.stringify(graph, null, 2) });
   }
 
   componentDidMount() {
     this.renderGraph(this.state.graph);
   }
 
-  updateVertexProperty(index, property, value) {
-    const newGraph = {
-      ...this.state.graph,
-      [index]: { ...this.state.graph[index], [property]: value },
-    };
-    if (property === 'adjacencyListText') {
-      try {
-        const jsonValue = JSON.parse(value);
-        const isValidList =
-          jsonValue.filter(el => !(el in this.state.graph)).length === 0;
-        console.log(jsonValue, isValidList);
-        if (isValidList) {
-          newGraph[index].adjacencyList = jsonValue;
-        }
-      } catch {
-        // do nothing
+  updateGraphJSON(e) {
+    const newState = { graphJSON: e.target.value };
+    try {
+      const newGraph = JSON.parse(e.target.value);
+      if (validateGraph(newGraph) && noInvalidAdjacencies(newGraph)) {
+        newState.graph = newGraph;
       }
-    }
-    this.setState(prevState => ({
-      graph: newGraph,
-    }));
-    this.renderGraph(newGraph);
-  }
-
-  changeVertexCount(event) {
-    const newVertexCount = parseInt(event.target.value);
-    if (!isNaN(newVertexCount)) {
-      const prevVertexCount = Object.keys(this.state.graph).length;
-      let newGraph = this.state.graph;
-      if (newVertexCount > prevVertexCount) {
-        for (let i = prevVertexCount; i < newVertexCount; i++) {
-          newGraph[i] = {
-            nailed: false,
-            xPos: Math.random() * canvasWidth,
-            yPos: Math.random() * canvasHeight,
-            adjacencyList: [],
-            adjacencyListText: JSON.stringify([]),
-          };
-        }
-      } else if (newVertexCount < prevVertexCount) {
-        for (let i = prevVertexCount; i > newVertexCount; i--) {
-          delete newGraph[i - 1];
-          for (let j = 0; j < i - 1; j++) {
-            newGraph[j].adjacencyList = newGraph[j].adjacencyList.filter(
-              v => v !== i - 1,
-            );
-            newGraph[j].adjacencyListText = JSON.stringify(
-              newGraph[j].adjacencyList,
-            );
-          }
-        }
-      }
-      this.setState({ graph: newGraph });
-      this.renderGraph(newGraph);
-    }
+    } catch {}
+    this.setState(newState, () => this.renderGraph(this.state.graph));
   }
 
   playAnimation(flipState) {
     const step = () => {
-      this.stepAnimation();
+      this.stepAnimation(1, false);
       if (this.state.playing) {
         setTimeout(() => this.playAnimation(), this.state.animationSpeed);
       }
@@ -214,13 +329,14 @@ class App extends React.Component {
   }
 
   randomizeFreeVertices() {
+    const canvas = this.canvasRef.current;
     const newGraph = this.state.graph;
     for (let vertexIndex in newGraph) {
       if (newGraph[vertexIndex].nailed) {
         continue;
       }
-      newGraph[vertexIndex].xPos = Math.random() * canvasWidth;
-      newGraph[vertexIndex].yPos = Math.random() * canvasHeight;
+      newGraph[vertexIndex].xPos = Math.random();
+      newGraph[vertexIndex].yPos = Math.random();
     }
     this.setState({ graph: newGraph });
     this.renderGraph(newGraph);
@@ -229,16 +345,24 @@ class App extends React.Component {
   render() {
     return (
       <div>
-        <div className="grid">
-          <h1>Tutte Embedding</h1>
-          <h1>Graph Information</h1>
-          <div className="container-item">
+        <div className="flex-container">
+          <div className="container">
+            <h1>Tutte Embedding</h1>
             <canvas
+              onWheel={this.zoomGraph}
+              onMouseDown={this.startDrag}
+              onMouseUp={() => this.setState({ dragging: false })}
+              onMouseMove={this.dragGraph}
+              onMouseOut={() => this.setState({ dragging: false })}
               ref={this.canvasRef}
-              width={canvasWidth}
-              height={canvasHeight}
+              width={this.state.canvasWidth}
+              height={this.state.canvasHeight}
               id="tutte-embedding"
             />
+          </div>
+          <div className="container control-container">
+            <h1>Controls</h1>
+            <h2>Animation Controls</h2>
             <button onClick={() => this.stepAnimation()}>Step Animation</button>
             <button onClick={() => this.stepAnimation(50)}>
               Step Animation (50)
@@ -246,6 +370,13 @@ class App extends React.Component {
             <button onClick={() => this.playAnimation(true)}>
               {!this.state.playing ? 'Play Animation' : 'Stop Animation'}
             </button>
+            <button onClick={this.recordAnimation}>
+              {!this.state.recording ? 'Record Canvas' : 'Stop Recording'}
+            </button>
+            <button onClick={this.randomizeFreeVertices}>
+              Randomize free vertex positions
+            </button>
+            <h2>Graph Presets</h2>
             <button onClick={() => this.loadGraph('icosahedralGraph')}>
               Icosahedral Graph
             </button>
@@ -268,9 +399,7 @@ class App extends React.Component {
             <button onClick={() => this.loadGraph('gridCircleDiagonal')}>
               7x7 circle grid (w/ diagonals)
             </button>
-            <button onClick={this.randomizeFreeVertices}>
-              Randomize free vertex positions
-            </button>
+            <h2>Display Controls</h2>
             <label>Show vertex indices:</label>
             <input
               type="checkbox"
@@ -284,45 +413,73 @@ class App extends React.Component {
                 );
               }}
             />
-            <label>Vertex Radius</label>
+            <label> Canvas Width: </label>
             <input
               type="number"
               min="0"
-              max="10"
-              value={this.state.vertexRadius}
+              className="numberInput"
+              value={this.state.canvasWidth}
               onChange={e =>
-                this.setState({ vertexRadius: parseInt(e.target.value) }, () =>
+                this.setState({ canvasWidth: parseInt(e.target.value) }, () =>
                   this.renderGraph(this.state.graph),
                 )
               }
             />
-            <label>Animation Speed</label>
+            <label> Canvas Height: </label>
             <input
               type="number"
               min="0"
-              max="1000"
-              value={this.state.animationSpeed}
+              className="numberInput"
+              value={this.state.canvasHeight}
               onChange={e =>
-                this.setState({ animationSpeed: parseInt(e.target.value) })
+                this.setState({ canvasHeight: parseInt(e.target.value) }, () =>
+                  this.renderGraph(this.state.graph),
+                )
               }
             />
-          </div>
-          <div className="container-item">
-            Vertex Count:{' '}
-            <input
-              type="number"
-              onChange={this.changeVertexCount}
-              value={Object.keys(this.state.graph).length}
-            />
-            {Object.keys(this.state.graph).map(v => (
-              <Vertex
-                key={v}
-                updateVertexProperty={this.updateVertexProperty}
-                index={v}
-                {...this.state.graph[v]}
+            <p>
+              <label>Vertex Radius: </label>
+              <input
+                type="number"
+                min="0"
+                max="10"
+                step="any"
+                size={2}
+                className="numberInput"
+                value={this.state.vertexRadius}
+                onChange={e =>
+                  this.setState({ vertexRadius: Number(e.target.value) }, () =>
+                    this.renderGraph(this.state.graph),
+                  )
+                }
               />
-            ))}
+            </p>
+            <p>
+              <label>Frame Delay (in milliseconds)</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                max="1000"
+                className="numberInput"
+                value={this.state.animationSpeed}
+                onChange={e =>
+                  this.setState({ animationSpeed: parseInt(e.target.value) })
+                }
+              />
+            </p>
           </div>
+          {!this.state.playing && (
+            <div className="graph-container">
+              <h1>Graph JSON Representation</h1>
+              <textarea
+                onChange={this.updateGraphJSON}
+                cols={getMaxLineWidth(this.state.graphJSON) + 2}
+                rows={this.state.graphJSON.split('\n').length}
+                value={this.state.graphJSON}
+              />
+            </div>
+          )}
         </div>
       </div>
     );
