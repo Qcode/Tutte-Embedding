@@ -115,6 +115,8 @@ class App extends React.Component {
         animationSpeed: 16,
         canvasWidth: 640,
         canvasHeight: 360,
+        freeEdgeWidth: 0.25,
+        nailedEdgeWidth: 0.25,
       };
     } else {
       this.setState(baseState);
@@ -128,7 +130,6 @@ class App extends React.Component {
     ctx.font = '12px Arial';
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 0.25;
     ctx.save();
     const canvasScale = this.getCanvasScale();
 
@@ -148,6 +149,10 @@ class App extends React.Component {
         const adjacentVertex = graph[vertex.adjacencyList[i]];
         ctx.strokeStyle =
           vertex.nailed && adjacentVertex.nailed ? '#F00' : '#00F';
+        ctx.lineWidth =
+          vertex.nailed && adjacentVertex.nailed
+            ? this.state.nailedEdgeWidth
+            : this.state.freeEdgeWidth;
         ctx.beginPath();
         ctx.moveTo(vertex.xPos * canvasScale, vertex.yPos * canvasScale);
         ctx.lineTo(
@@ -465,6 +470,35 @@ class App extends React.Component {
                 value={this.state.animationSpeed}
                 onChange={e =>
                   this.setState({ animationSpeed: parseInt(e.target.value) })
+                }
+              />
+              <label>Free Edge Width:</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                max="10"
+                className="numberInput"
+                value={this.state.freeEdgeWidth}
+                onChange={e =>
+                  this.setState({ freeEdgeWidth: Number(e.target.value) }, () =>
+                    this.renderGraph(this.state.graph),
+                  )
+                }
+              />
+              <label>Nailed Edge Width:</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                max="10"
+                className="numberInput"
+                value={this.state.nailedEdgeWidth}
+                onChange={e =>
+                  this.setState(
+                    { nailedEdgeWidth: Number(e.target.value) },
+                    () => this.renderGraph(this.state.graph),
+                  )
                 }
               />
             </p>
